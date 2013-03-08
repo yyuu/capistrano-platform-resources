@@ -24,6 +24,16 @@ module Capistrano
                 EOS
               end
 
+              def architecture(options={})
+                arch = capture("uname -m", options).strip
+                case arch
+                when /^(i[3-6]86|pentium)$/ then "i386"
+                when /^(amd64|x86_64)$/     then "x86_64"
+                else
+                  arch
+                end
+              end
+
               namespace(:packages) {
                 def installed?(packages=[], options={})
                   packages = [ packages ].flatten
