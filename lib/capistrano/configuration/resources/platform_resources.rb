@@ -47,7 +47,7 @@ module Capistrano
                   if packages.empty?
                     true
                   else
-                    !/not-installed/i =~ case identifier
+                    not /not-installed/ =~ case identifier
                       when :debian, :ubuntu
                         capture("dpkg-query -s #{packages.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo not-installed")
                       when :centos, :redhat
