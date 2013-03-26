@@ -8,25 +8,43 @@ module Capistrano
         def self.extended(configuration)
           configuration.load {
             namespace(:platform) {
-              _cset(:platform_identifier) { platform.identifier(fetch(:platform_identifier_options, {})) }
-              def identifier(options={})
+              _cset(:platform_family) { platform.family(fetch(:platform_family_options, {})) }
+              def family(options={})
                 capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
                   if test -f /etc/debian_version; then
+                    echo debian;
+                  elif test -f /etc/redhat-release; then
+                    echo redhat;
+                  else
+                    echo unknown;
+                  fi;
+                EOS
+              end
+
+              _cset(:platform_identifier) { platform.identifier(fetch(:platform_identifier_options, {})) }
+              def identifier(options={})
+                options = options.dup
+                family = ( options.delete(:family) || fetch(:platform_family) )
+                case family
+                when :debian
+                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
                     if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
                       echo ubuntu;
                     else
                       echo debian;
                     fi;
-                  elif test -f /etc/redhat-release; then
+                  EOS
+                when :redhat
+                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
                     if test -f /etc/centos-release; then
                       echo centos;
                     else
                       echo redhat;
                     fi;
-                  else
-                    echo unknown;
-                  fi;
-                EOS
+                  EOS
+                else
+                  :unknown
+                end
               end
 
               _cset(:platform_architecture) { platform.architecture(fetch(:platform_architecture_options, {})) }
@@ -42,28 +60,30 @@ module Capistrano
 
               namespace(:packages) {
                 def installed?(packages=[], options={})
+                  options = options.dup
                   packages = [ packages ].flatten
-                  identifier = ( options.delete(:identifier) || fetch(:platform_identifier) )
+                  family = ( options.delete(:family) || fetch(:platform_family) )
                   if packages.empty?
                     true
                   else
-                    not /not-installed/ =~ case identifier
-                      when :debian, :ubuntu
+                    not /not-installed/ =~ case family
+                      when :debian
                         capture("dpkg-query -s #{packages.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo not-installed")
-                      when :centos, :redhat
+                      when :redhat
                         capture("rpm -qi #{packages.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo not-installed")
                       end
                   end
                 end
 
                 def install(packages=[], options={})
+                  options = options.dup
                   packages = [ packages ].flatten
-                  identifier = ( options.delete(:identifier) || fetch(:platform_identifier) )
+                  family = ( options.delete(:family) || fetch(:platform_family) )
                   unless packages.empty?
-                    case identifier
-                    when :debian, :ubuntu
+                    case family
+                    when :debian
                       sudo("apt-get install -q -y #{packages.map { |x| x.dump }.join(" ")}", options)
-                    when :centos, :redhat
+                    when :redhat
                       sudo("yum install -q -y #{packages.map { |x| x.dump }.join(" ")}", options)
                     end
                   end
