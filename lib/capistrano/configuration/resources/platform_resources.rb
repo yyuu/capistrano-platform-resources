@@ -88,6 +88,21 @@ module Capistrano
                     end
                   end
                 end
+
+                def uninstall(packages=[], options={})
+                  options = options.dup
+                  packages = [ packages ].flatten
+                  family = ( options.delete(:family) || fetch(:platform_family) )
+                  unless packages.empty?
+                    case family
+                    when :debian
+                      sudo("apt-get purge -q -y #{packages.map { |x| x.dump }.join(" ")}", options)
+                    when :redhat
+                      sudo("yum remove -q -y #{packages.map { |x| x.dump }.join(" ")}", options)
+                    end
+                  end
+                end
+
               }
             }
           }
