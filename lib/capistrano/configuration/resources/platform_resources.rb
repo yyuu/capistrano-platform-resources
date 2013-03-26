@@ -76,6 +76,7 @@ module Capistrano
                 end
 
                 def install(packages=[], options={})
+                  try_update(options)
                   options = options.dup
                   packages = [ packages ].flatten
                   family = ( options.delete(:family) || fetch(:platform_family) )
@@ -103,6 +104,35 @@ module Capistrano
                   end
                 end
 
+                def try_update(options={})
+                  unless fetch(:platform_packages_updated, false)
+                    update(options)
+                    set(:platform_packages_updated, true)
+                  end
+                end
+
+                def update(options={})
+                  options = options.dup
+                  family = ( options.delete(:family) || fetch(:platform_family) )
+                  case family
+                  when :debian
+                    sudo("apt-get update -q -y", options)
+                  when :redhat
+                    sudo("yum check-update -q -y", options)
+                  end
+                end
+
+                def upgrade(options={})
+                  try_update(options)
+                  options = options.dup
+                  family = ( options.delete(:family) || fetch(:platform_family) )
+                  case family
+                  when :debian
+                    sudo("apt-get upgrade -q -y", options)
+                  when :redhat
+                    sudo("yum upgrade -q -y", options)
+                  end
+                end
               }
             }
           }
