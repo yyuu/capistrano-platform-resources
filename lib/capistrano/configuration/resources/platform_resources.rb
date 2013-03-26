@@ -118,7 +118,7 @@ module Capistrano
                   when :debian
                     sudo("apt-get update -q -y", options)
                   when :redhat
-                    sudo("yum check-update -q -y", options)
+                    sudo("yum check-update -q -y || true", options)
                   end
                 end
 
