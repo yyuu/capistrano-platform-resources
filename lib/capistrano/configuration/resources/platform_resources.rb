@@ -21,30 +21,67 @@ module Capistrano
                 EOS
               end
 
+              _cset(:platform_lsb_packages) {
+                case platform_family
+                when :debian
+                  %w(lsb-release lsb-core)
+                when :redhat
+                  %w(redhat-lsb)
+                else
+                  []
+                end
+              }
+              task(:setup, :except => { :no_release => true }) {
+                unless platform.packages.installed?(platform_lsb_packages)
+                  platform.packages.install(platform_lsb_packages)
+                end
+              }
+              if top.namespaces.key?(:multistage)
+                after "multistage:ensure", "platform:setup"
+              else
+                on(:load) do
+                  if top.namespaces.key?(:multistage)
+                    after "multistage:ensure", "platform:setup"
+                  else
+                    find_and_execute_task("platform:setup")
+                  end
+                end
+              end
+
               _cset(:platform_identifier) { platform.identifier(fetch(:platform_identifier_options, {})) }
               def identifier(options={})
                 options = options.dup
-                family = ( options.delete(:family) || fetch(:platform_family) )
-                case family
-                when :debian
-                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
-                    if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
-                      echo ubuntu;
-                    else
-                      echo debian;
-                    fi;
-                  EOS
-                when :redhat
-                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
-                    if test -f /etc/centos-release; then
-                      echo centos;
-                    else
-                      echo redhat;
-                    fi;
-                  EOS
-                else
-                  :unknown
-                end
+                options.delete(:family) # for backward compatibility
+                lsb_identifier(options)
+              end
+
+              def lsb_identifier(options={})
+                identifier = capture("lsb_release --id --short || true", options).strip.downcase
+                not(codename.empty?) ? identifier.to_sym : :unknown
+              end
+
+              _cset(:platform_release) { platform.release(fetch(:platform_release_options, {})) }
+              def release(options={})
+                options = options.dup
+                options.delete(:family) # for backward compatibility
+                lsb_release(options)
+              end
+
+              def lsb_release(options={})
+                release = capture("lsb_release --release --short || true", options).strip.downcase
+                not(release.empty?) ? release.to_sym : :unknown
+              end
+
+              _cset(:platform_codename) { platform.codename(fetch(:platform_codename_options, {})) }
+              def codename(options={})
+                options = options.dup
+                options.delete(:family) # for backward compatibility
+                lsb_codename(options)
+              end
+
+              def lsb_codename(options={})
+                codename = capture("lsb_release --codename --short || true", options).strip.downcase
+                not(codename.empty?) ? codename.to_sym : :unknown
               end
 
               _cset(:platform_architecture) { platform.architecture(fetch(:platform_architecture_options, {})) }
