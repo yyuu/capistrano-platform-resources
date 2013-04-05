@@ -32,9 +32,7 @@ module Capistrano
                 end
               }
               task(:setup, :except => { :no_release => true }) {
-                unless platform.packages.installed?(platform_lsb_packages)
-                  platform.packages.install(platform_lsb_packages)
-                end
+                platform.packages.install(platform_lsb_packages)
               }
               if top.namespaces.key?(:multistage)
                 after "multistage:ensure", "platform:setup"
@@ -113,7 +111,15 @@ module Capistrano
                 end
 
                 def install(packages=[], options={})
-                  try_update(options)
+                  if installed?(packages, options)
+                    false
+                  else
+                    install!(packages, options)
+                  end
+                end
+
+                def install!(packages=[], options={})
+                  update(options)
                   options = options.dup
                   packages = [ packages ].flatten
                   family = ( options.delete(:family) || fetch(:platform_family) )
@@ -128,6 +134,14 @@ module Capistrano
                 end
 
                 def uninstall(packages=[], options={})
+                  if installed?(packages, options)
+                    uninstall!(packages, options)
+                  else
+                    false
+                  end
+                end
+
+                def uninstall!(packages=[], options={})
                   options = options.dup
                   packages = [ packages ].flatten
                   family = ( options.delete(:family) || fetch(:platform_family) )
@@ -141,14 +155,18 @@ module Capistrano
                   end
                 end
 
-                def try_update(options={})
-                  unless fetch(:platform_packages_updated, false)
-                    update(options)
+                def update(options={})
+                  if fetch(:platform_packages_updated, false)
+                    false
+                  else
+                    update!(options)
                     set(:platform_packages_updated, true)
+                    true
                   end
                 end
+                alias try_update update # for backward compatibility before 0.1.2
 
-                def update(options={})
+                def update!(options={})
                   options = options.dup
                   family = ( options.delete(:family) || fetch(:platform_family) )
                   case family
@@ -160,7 +178,17 @@ module Capistrano
                 end
 
                 def upgrade(options={})
-                  try_update(options)
+                  if fetch(:platform_packages_upgraded, false)
+                    false
+                  else
+                    upgrade!(options)
+                    set(:platform_packages_upgraded, true)
+                    true
+                  end
+                end
+
+                def upgrade!(options={})
+                  update(options)
                   options = options.dup
                   family = ( options.delete(:family) || fetch(:platform_family) )
                   case family
