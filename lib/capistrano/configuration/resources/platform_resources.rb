@@ -31,19 +31,19 @@ module Capistrano
                   []
                 end
               }
-              task(:setup, :except => { :no_release => true }) {
-                platform.packages.install(platform_lsb_packages)
-              }
-              if top.namespaces.key?(:multistage)
-                after "multistage:ensure", "platform:setup"
-              else
-                on(:load) do
-                  if top.namespaces.key?(:multistage)
-                    after "multistage:ensure", "platform:setup"
-                  else
-                    find_and_execute_task("platform:setup")
-                  end
+
+              def lsb_setup(options={})
+                if fetch(:platform_setup, false)
+                  false
+                else
+                  lsb_setup!(options)
+                  set(:platform_setup, true)
+                  true
                 end
+              end
+
+              def lsb_setup!(options={})
+                platform.packages.install(platform_lsb_packages, options)
               end
 
               _cset(:platform_identifier) { platform.identifier(fetch(:platform_identifier_options, {})) }
@@ -54,6 +54,7 @@ module Capistrano
               end
 
               def lsb_identifier(options={})
+                lsb_setup(options)
                 identifier = capture("lsb_release --id --short || true", options).strip.downcase
                 not(codename.empty?) ? identifier.to_sym : :unknown
               end
@@ -66,6 +67,7 @@ module Capistrano
               end
 
               def lsb_release(options={})
+                lsb_setup(options)
                 release = capture("lsb_release --release --short || true", options).strip.downcase
                 not(release.empty?) ? release.to_sym : :unknown
               end
@@ -78,6 +80,7 @@ module Capistrano
               end
 
               def lsb_codename(options={})
+                lsb_setup(options)
                 codename = capture("lsb_release --codename --short || true", options).strip.downcase
                 not(codename.empty?) ? codename.to_sym : :unknown
               end
