@@ -21,30 +21,68 @@ module Capistrano
                 EOS
               end
 
+              _cset(:platform_lsb_packages) {
+                case platform_family
+                when :debian
+                  %w(lsb-release lsb-core)
+                when :redhat
+                  %w(redhat-lsb)
+                else
+                  []
+                end
+              }
+
+              def lsb_setup(options={})
+                if fetch(:platform_setup, false)
+                  false
+                else
+                  lsb_setup!(options)
+                  set(:platform_setup, true)
+                  true
+                end
+              end
+
+              def lsb_setup!(options={})
+                platform.packages.install(platform_lsb_packages, options)
+              end
+
               _cset(:platform_identifier) { platform.identifier(fetch(:platform_identifier_options, {})) }
               def identifier(options={})
                 options = options.dup
-                family = ( options.delete(:family) || fetch(:platform_family) )
-                case family
-                when :debian
-                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
-                    if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
-                      echo ubuntu;
-                    else
-                      echo debian;
-                    fi;
-                  EOS
-                when :redhat
-                  capture((<<-EOS).gsub(/\s+/, " "), options).strip.to_sym
-                    if test -f /etc/centos-release; then
-                      echo centos;
-                    else
-                      echo redhat;
-                    fi;
-                  EOS
-                else
-                  :unknown
-                end
+                options.delete(:family) # for backward compatibility
+                lsb_identifier(options)
+              end
+
+              def lsb_identifier(options={})
+                lsb_setup(options)
+                identifier = capture("lsb_release --id --short || true", options).strip.downcase
+                not(codename.empty?) ? identifier.to_sym : :unknown
+              end
+
+              _cset(:platform_release) { platform.release(fetch(:platform_release_options, {})) }
+              def release(options={})
+                options = options.dup
+                options.delete(:family) # for backward compatibility
+                lsb_release(options)
+              end
+
+              def lsb_release(options={})
+                lsb_setup(options)
+                release = capture("lsb_release --release --short || true", options).strip.downcase
+                not(release.empty?) ? release.to_sym : :unknown
+              end
+
+              _cset(:platform_codename) { platform.codename(fetch(:platform_codename_options, {})) }
+              def codename(options={})
+                options = options.dup
+                options.delete(:family) # for backward compatibility
+                lsb_codename(options)
+              end
+
+              def lsb_codename(options={})
+                lsb_setup(options)
+                codename = capture("lsb_release --codename --short || true", options).strip.downcase
+                not(codename.empty?) ? codename.to_sym : :unknown
               end
 
               _cset(:platform_architecture) { platform.architecture(fetch(:platform_architecture_options, {})) }
@@ -76,7 +114,15 @@ module Capistrano
                 end
 
                 def install(packages=[], options={})
-                  try_update(options)
+                  if installed?(packages, options)
+                    false
+                  else
+                    install!(packages, options)
+                  end
+                end
+
+                def install!(packages=[], options={})
+                  update(options)
                   options = options.dup
                   packages = [ packages ].flatten
                   family = ( options.delete(:family) || fetch(:platform_family) )
@@ -91,6 +137,14 @@ module Capistrano
                 end
 
                 def uninstall(packages=[], options={})
+                  if installed?(packages, options)
+                    uninstall!(packages, options)
+                  else
+                    false
+                  end
+                end
+
+                def uninstall!(packages=[], options={})
                   options = options.dup
                   packages = [ packages ].flatten
                   family = ( options.delete(:family) || fetch(:platform_family) )
@@ -104,14 +158,18 @@ module Capistrano
                   end
                 end
 
-                def try_update(options={})
-                  unless fetch(:platform_packages_updated, false)
-                    update(options)
+                def update(options={})
+                  if fetch(:platform_packages_updated, false)
+                    false
+                  else
+                    update!(options)
                     set(:platform_packages_updated, true)
+                    true
                   end
                 end
+                alias try_update update # for backward compatibility before 0.1.2
 
-                def update(options={})
+                def update!(options={})
                   options = options.dup
                   family = ( options.delete(:family) || fetch(:platform_family) )
                   case family
@@ -123,7 +181,17 @@ module Capistrano
                 end
 
                 def upgrade(options={})
-                  try_update(options)
+                  if fetch(:platform_packages_upgraded, false)
+                    false
+                  else
+                    upgrade!(options)
+                    set(:platform_packages_upgraded, true)
+                    true
+                  end
+                end
+
+                def upgrade!(options={})
+                  update(options)
                   options = options.dup
                   family = ( options.delete(:family) || fetch(:platform_family) )
                   case family
