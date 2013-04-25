@@ -17,4 +17,4 @@ v0.1.2 (Yamashita, Yuu)
 
 v0.1.3 (Yamashita, Yuu)
 
-* Fixed support for Amazon Linux. Thanks @tk0miya. (#1)
+* Fixed support for Amazon Linux. Thanks @tk0miya. ([#1](https://github.com/yyuu/capistrano-platform-resources/pull/1))
