@@ -15,6 +15,8 @@ module Capistrano
                     echo debian;
                   elif test -f /etc/redhat-release; then
                     echo redhat;
+                  elif test -f /etc/system-release; then
+                    echo redhat;
                   else
                     echo unknown;
                   fi;
